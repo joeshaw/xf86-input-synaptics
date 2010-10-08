@@ -2332,7 +2332,24 @@ CloseProc(LocalDevicePtr local)
 static int
 SwitchMode(ClientPtr client, DeviceIntPtr dev, int mode)
 {
-    ErrorF("SwitchMode called\n");
+    LocalDevicePtr local = (LocalDevicePtr) dev->public.devicePrivate;
+    SynapticsPrivate *priv = (SynapticsPrivate *) (local->private);
+
+    DBG(3, "SwitchMode called\n");
+
+    switch (mode) {
+    case Absolute:
+        priv->absolute_events = TRUE;
+        break;
+
+    case Relative:
+        priv->absolute_events = FALSE;
+        break;
+
+    default:
+        return XI_BadMode;
+    }
+
     return Success;
 }
 
