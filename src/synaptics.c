@@ -1729,9 +1729,6 @@ ComputeDeltas(SynapticsPrivate *priv, struct SynapticsHwState *hw,
     *dxP = dx;
     *dyP = dy;
 
-    /* generate a history of the absolute positions */
-    store_history(priv, hw->x, hw->y, hw->millis);
-
     return delay;
 }
 
@@ -2187,8 +2184,15 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
      */
     ScaleCoordinates(priv, hw);
 
-    timeleft = ComputeDeltas(priv, hw, edge, &dx, &dy);
-    delay = MIN(delay, timeleft);
+    dx = dy = 0;
+
+    if (!priv->absolute_events) {
+      timeleft = ComputeDeltas(priv, hw, edge, &dx, &dy);
+      delay = MIN(delay, timeleft);
+    }
+
+    /* generate a history of the absolute positions */
+    store_history(priv, hw->x, hw->y, hw->millis);
 
     rep_buttons = ((para->updown_button_repeat ? 0x18 : 0) |
 		   (para->leftright_button_repeat ? 0x60 : 0));
@@ -2219,11 +2223,13 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     /* Process movements only if coordinates are
      * in the Synaptics Area
      */
-    if (!inside_active_area)
-	dx = dy = 0;
-
-    if (dx || dy)
-	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
+    if (inside_active_area) {
+        if (priv->absolute_events) {
+            xf86PostMotionEvent(local->dev, 1, 0, 2, hw->x, hw->y);
+        } else if (dx || dy) {
+            xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
+        }
+    }
 
     if (priv->mid_emu_state == MBE_LEFT_CLICK)
     {
