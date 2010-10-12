@@ -114,6 +114,8 @@ typedef enum {
 
 #define INPUT_BUFFER_SIZE 200
 
+#define NUM_AXES 4
+
 /*****************************************************************************
  * Forward declaration
  ****************************************************************************/
@@ -922,6 +924,10 @@ static void InitAxesLabels(Atom *labels, int nlabels)
     switch(nlabels)
     {
         default:
+        case 4:
+            labels[3] = None; // FIXME? Not sure how to do this given there's no corresponding property
+        case 3:
+            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE);
         case 2:
             labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
         case 1:
@@ -967,10 +973,10 @@ DeviceInit(DeviceIntPtr dev)
     int min, max;
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
     Atom btn_labels[SYN_MAX_BUTTONS] = { 0 };
-    Atom axes_labels[2] = { 0 };
+    Atom axes_labels[NUM_AXES] = { 0 };
     DeviceVelocityPtr pVel;
 
-    InitAxesLabels(axes_labels, 2);
+    InitAxesLabels(axes_labels, NUM_AXES);
     InitButtonLabels(btn_labels, SYN_MAX_BUTTONS);
 #endif
 
@@ -987,7 +993,7 @@ DeviceInit(DeviceIntPtr dev)
                             btn_labels,
 #endif
 			    SynapticsCtrl,
-			    GetMotionHistorySize(), 2
+			    GetMotionHistorySize(), NUM_AXES
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                             , axes_labels
 #endif
@@ -1071,6 +1077,37 @@ DeviceInit(DeviceIntPtr dev)
 #endif
             min, max, priv->resy * 1000, 0, priv->resy * 1000);
     xf86InitValuatorDefaults(dev, 1);
+
+    /* Z/pressure valuator */
+    if (priv->minp < priv->maxp)
+    {
+        min = priv->minp;
+        max = priv->maxp;
+    } else
+    {
+        min = 0;
+        max = -1;
+    }
+
+    xf86InitValuatorAxisStruct(dev, 2,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[2],
+#endif
+            min, max, 1, 0, 1);
+    xf86InitValuatorDefaults(dev, 2);
+
+    /* Valuator for number of fingers */
+    xf86InitValuatorAxisStruct(dev, 3,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[3],
+#endif
+            0, 3, /* Supports up to 3 fingers for now */
+            1, 0, 1);
+    xf86InitValuatorDefaults(dev, 3);
+
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
+    xf86MotionHistoryAllocate(local);
+#endif
 
     if (!alloc_param_data(pInfo))
 	return !Success;
@@ -2456,6 +2493,9 @@ HandleState(InputInfoPtr pInfo, struct SynapticsHwState *hw)
             xf86PostMotionEvent(pInfo->dev, 0, 0, 2, dx, dy);
         }
     }
+
+    if (inside_active_area)
+        xf86PostMotionEvent(local->dev, 1, 2, 2, hw->z, hw->numFingers);
 
     if (priv->mid_emu_state == MBE_LEFT_CLICK)
     {
