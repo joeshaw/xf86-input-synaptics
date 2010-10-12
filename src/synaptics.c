@@ -113,7 +113,7 @@ typedef enum {
 
 #define INPUT_BUFFER_SIZE 200
 
-#define NUM_AXES 4
+#define NUM_AXES 6
 
 /*****************************************************************************
  * Forward declaration
@@ -835,6 +835,10 @@ static void InitAxesLabels(Atom *labels, int nlabels)
     switch(nlabels)
     {
         default:
+        case 6:
+            labels[5] = None;
+        case 5:
+            labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE);
         case 4:
             labels[3] = None;
         case 3:
@@ -966,6 +970,33 @@ DeviceInit(DeviceIntPtr dev)
 #endif
             0, -1, 1, 0, 1);
     xf86InitValuatorDefaults(dev, 3);
+
+    /* Z/pressure valuator */
+    if (priv->minp < priv->maxp)
+    {
+        min = priv->minp;
+        max = priv->maxp;
+    } else
+    {
+        min = 0;
+        max = -1;
+    }
+
+    xf86InitValuatorAxisStruct(dev, 4,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[4],
+#endif
+            min, max, 1, 0, 1);
+    xf86InitValuatorDefaults(dev, 4);
+
+    /* Valuator for number of fingers */
+    xf86InitValuatorAxisStruct(dev, 5,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[5],
+#endif
+            0, 3, /* Supports up to 3 fingers for now */
+            1, 0, 1);
+    xf86InitValuatorDefaults(dev, 5);
 
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
     xf86MotionHistoryAllocate(local);
@@ -2259,11 +2290,17 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
      * in the Synaptics Area and there is at least
      * one finger down
      */
-    if (inside_active_area && finger > FS_UNTOUCHED) {
-        if (priv->absolute_events) {
-            xf86PostMotionEvent(local->dev, 1, 0, 2, hw->x, hw->y);
-        } else if (dx || dy) {
-            xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
+    if (inside_active_area) {
+        if (finger > FS_UNTOUCHED) {
+            if (priv->absolute_events) {
+                xf86PostMotionEvent(local->dev, 1, 0, 2, hw->x, hw->y);
+            } else if (dx || dy) {
+                xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
+            }
+        }
+
+        if (hw->z != priv->last_z || hw->numFingers != priv->last_num_fingers) {
+            xf86PostMotionEvent(local->dev, 1, 4, 2, hw->z, hw->numFingers);
         }
     }
 
@@ -2373,6 +2410,8 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     priv->finger_state = finger;
     priv->lastButtons = buttons;
     priv->reset_smooth_scroll = (scroll.dx || scroll.dy);
+    priv->last_z = hw->z;
+    priv->last_num_fingers = hw->numFingers;
 
     return delay;
 }
