@@ -2221,9 +2221,10 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     /* Post events */
 
     /* Process movements only if coordinates are
-     * in the Synaptics Area
+     * in the Synaptics Area and there is at least
+     * one finger down
      */
-    if (inside_active_area) {
+    if (inside_active_area && finger > FS_UNTOUCHED) {
         if (priv->absolute_events) {
             xf86PostMotionEvent(local->dev, 1, 0, 2, hw->x, hw->y);
         } else if (dx || dy) {
