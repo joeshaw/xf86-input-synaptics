@@ -113,6 +113,8 @@ typedef enum {
 
 #define INPUT_BUFFER_SIZE 200
 
+#define NUM_AXES 4
+
 /*****************************************************************************
  * Forward declaration
  ****************************************************************************/
@@ -352,6 +354,7 @@ static void set_default_parameters(LocalDevicePtr local)
     int clickFinger1, clickFinger2, clickFinger3;
     Bool vertEdgeScroll, horizEdgeScroll;
     Bool vertTwoFingerScroll, horizTwoFingerScroll;
+    Bool smoothScroll;
     int horizResolution = 1;
     int vertResolution = 1;
 
@@ -455,6 +458,9 @@ static void set_default_parameters(LocalDevicePtr local)
     vertTwoFingerScroll = priv->has_double ? TRUE : FALSE;
     horizTwoFingerScroll = FALSE;
 
+    /* Enable smooth scrolling */
+    smoothScroll = TRUE;
+
     /* Use resolution reported by hardware if available */
     if ((priv->resx > 0) && (priv->resy > 0)) {
         horizResolution = priv->resx;
@@ -490,6 +496,7 @@ static void set_default_parameters(LocalDevicePtr local)
     pars->scroll_edge_corner = xf86SetBoolOption(opts, "CornerCoasting", FALSE);
     pars->scroll_twofinger_vert = xf86SetBoolOption(opts, "VertTwoFingerScroll", vertTwoFingerScroll);
     pars->scroll_twofinger_horiz = xf86SetBoolOption(opts, "HorizTwoFingerScroll", horizTwoFingerScroll);
+    pars->smooth_scroll = xf86SetBoolOption(opts, "SmoothScroll", smoothScroll);
     pars->edge_motion_min_z = xf86SetIntOption(opts, "EdgeMotionMinZ", edgeMotionMinZ);
     pars->edge_motion_max_z = xf86SetIntOption(opts, "EdgeMotionMaxZ", edgeMotionMaxZ);
     pars->edge_motion_min_speed = xf86SetIntOption(opts, "EdgeMotionMinSpeed", edgeMotionMinSpeed);
@@ -828,6 +835,10 @@ static void InitAxesLabels(Atom *labels, int nlabels)
     switch(nlabels)
     {
         default:
+        case 4:
+            labels[3] = None;
+        case 3:
+            labels[2] = None;
         case 2:
             labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
         case 1:
@@ -871,9 +882,9 @@ DeviceInit(DeviceIntPtr dev)
     int min, max;
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
     Atom btn_labels[SYN_MAX_BUTTONS] = { 0 };
-    Atom axes_labels[2] = { 0 };
+    Atom axes_labels[NUM_AXES] = { 0 };
 
-    InitAxesLabels(axes_labels, 2);
+    InitAxesLabels(axes_labels, NUM_AXES);
     InitButtonLabels(btn_labels, SYN_MAX_BUTTONS);
 #endif
 
@@ -898,7 +909,7 @@ DeviceInit(DeviceIntPtr dev)
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
 			    miPointerGetMotionBufferSize()
 #else
-			    GetMotionHistorySize(), 2
+			    GetMotionHistorySize(), NUM_AXES
 #endif
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                             , axes_labels
@@ -939,6 +950,22 @@ DeviceInit(DeviceIntPtr dev)
 #endif
             min, max, priv->resy * 1000, 0, priv->resy * 1000);
     xf86InitValuatorDefaults(dev, 1);
+
+    /* X scroll valuator */
+    xf86InitValuatorAxisStruct(dev, 2,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[2],
+#endif
+            0, -1, 1, 0, 1);
+    xf86InitValuatorDefaults(dev, 2);
+
+    /* Y scroll valuator */
+    xf86InitValuatorAxisStruct(dev, 3,
+#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+            axes_labels[3],
+#endif
+            0, -1, 1, 0, 1);
+    xf86InitValuatorDefaults(dev, 3);
 
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
     xf86MotionHistoryAllocate(local);
@@ -1734,6 +1761,7 @@ ComputeDeltas(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 
 struct ScrollData {
     int left, right, up, down;
+    int dx, dy;
 };
 
 static void
@@ -1788,6 +1816,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
     int delay = 1000000000;
 
     sd->left = sd->right = sd->up = sd->down = 0;
+    sd->dx = sd->dy = 0;
 
     if (priv->synpara.touchpad_off == 2) {
 	stop_coasting(priv);
@@ -1826,14 +1855,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		    (para->scroll_twofinger_vert) && (para->scroll_dist_vert != 0)) {
 		    priv->vert_scroll_twofinger_on = TRUE;
 		    priv->vert_scroll_edge_on = FALSE;
-		    priv->scroll_y = hw->y;
+		    priv->scroll_y = priv->smooth_scroll_y = hw->y;
 		    DBG(7, ErrorF("vert two-finger scroll detected\n"));
 		}
 		if (!priv->horiz_scroll_twofinger_on &&
 		    (para->scroll_twofinger_horiz) && (para->scroll_dist_horiz != 0)) {
 		    priv->horiz_scroll_twofinger_on = TRUE;
 		    priv->horiz_scroll_edge_on = FALSE;
-		    priv->scroll_x = hw->x;
+		    priv->scroll_x = priv->smooth_scroll_x = hw->x;
 		    DBG(7, ErrorF("horiz two-finger scroll detected\n"));
 		}
 	    }
@@ -1843,13 +1872,13 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		if ((para->scroll_edge_vert) && (para->scroll_dist_vert != 0) &&
 		    (edge & RIGHT_EDGE)) {
 		    priv->vert_scroll_edge_on = TRUE;
-		    priv->scroll_y = hw->y;
+		    priv->scroll_y = priv->smooth_scroll_y = hw->y;
 		    DBG(7, ErrorF("vert edge scroll detected on right edge\n"));
 		}
 		if ((para->scroll_edge_horiz) && (para->scroll_dist_horiz != 0) &&
 		    (edge & BOTTOM_EDGE)) {
 		    priv->horiz_scroll_edge_on = TRUE;
-		    priv->scroll_x = hw->x;
+		    priv->scroll_x = priv->smooth_scroll_x = hw->x;
 		    DBG(7, ErrorF("horiz edge scroll detected on bottom edge\n"));
 		}
 	    }
@@ -1954,6 +1983,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 	/* + = down, - = up */
 	int delta = para->scroll_dist_vert;
 	if (delta > 0) {
+            sd->dy = hw->y - priv->smooth_scroll_y;
+            priv->smooth_scroll_y = hw->y;
+
 	    while (hw->y - priv->scroll_y > delta) {
 		sd->down++;
 		priv->scroll_y += delta;
@@ -1968,6 +2000,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 	/* + = right, - = left */
 	int delta = para->scroll_dist_horiz;
 	if (delta > 0) {
+            sd->dx = hw->x - priv->smooth_scroll_x;
+            priv->smooth_scroll_x = hw->x;
+
 	    while (hw->x - priv->scroll_x > delta) {
 		sd->right++;
 		priv->scroll_x += delta;
@@ -2271,6 +2306,10 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
 		xf86PostButtonEvent(local->dev, FALSE, 7, TRUE, 0, 0);
 		xf86PostButtonEvent(local->dev, FALSE, 7, FALSE, 0, 0);
         }
+
+        if (priv->reset_smooth_scroll || scroll.dy || scroll.dy) {
+            xf86PostMotionEvent(local->dev, 0, 2, 2, scroll.dx, scroll.dy);
+        }
     }
 
     if (double_click) {
@@ -2318,6 +2357,7 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     /* Save old values of some state variables */
     priv->finger_state = finger;
     priv->lastButtons = buttons;
+    priv->reset_smooth_scroll = (scroll.dx || scroll.dy);
 
     return delay;
 }
