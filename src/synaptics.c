@@ -2345,22 +2345,7 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
         }
 
         if (priv->reset_smooth_scroll || scroll.dy || scroll.dy) {
-            int dist;
-            float accl;
-            float speed;
-            int ndx, ndy;
-
-            dist = move_distance(scroll.dx, scroll.dy);
-
-            accl = MAX(para->accl, para->min_speed);
-            accl = MIN(accl, para->max_speed);
-
-            speed = dist * accl;
-
-            ndx = scroll.dx * speed;
-            ndy = scroll.dy * speed;
-
-            xf86PostMotionEvent(local->dev, 1, 2, 2, ndx, ndy);
+            xf86PostMotionEvent(local->dev, 0, 2, 2, scroll.dx, scroll.dy);
         }
     }
 
