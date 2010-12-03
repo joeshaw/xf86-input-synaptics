@@ -2344,7 +2344,7 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
 		xf86PostButtonEvent(local->dev, FALSE, 7, FALSE, 0, 0);
         }
 
-        if (priv->reset_smooth_scroll || scroll.dy || scroll.dy) {
+        if (priv->reset_smooth_scroll || scroll.dx || scroll.dy) {
             xf86PostMotionEvent(local->dev, 0, 2, 2, scroll.dx, scroll.dy);
         }
     }
