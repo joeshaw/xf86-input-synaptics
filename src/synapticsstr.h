@@ -109,6 +109,7 @@ typedef struct _SynapticsParameters
     Bool scroll_twofinger_vert;		    /* Enable/disable vertical two-finger scrolling */
     Bool scroll_twofinger_horiz;	    /* Enable/disable horizontal two-finger scrolling */
     Bool smooth_scroll;                     /* Enable/disable reporting of scrolling with valuators */
+    double smooth_scroll_speed;             /* Factor to multiply units by for smooth scrolling */
     double min_speed, max_speed, accl;	    /* movement parameters */
     double trackstick_speed;		    /* trackstick mode speed */
     int edge_motion_min_z;		    /* finger pressure at which minimum edge motion speed is set */

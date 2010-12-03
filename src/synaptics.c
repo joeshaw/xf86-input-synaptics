@@ -497,6 +497,7 @@ static void set_default_parameters(LocalDevicePtr local)
     pars->scroll_twofinger_vert = xf86SetBoolOption(opts, "VertTwoFingerScroll", vertTwoFingerScroll);
     pars->scroll_twofinger_horiz = xf86SetBoolOption(opts, "HorizTwoFingerScroll", horizTwoFingerScroll);
     pars->smooth_scroll = xf86SetBoolOption(opts, "SmoothScroll", smoothScroll);
+    pars->smooth_scroll_speed = xf86SetRealOption(opts, "SmoothScrollSpeed", 2.0);
     pars->edge_motion_min_z = xf86SetIntOption(opts, "EdgeMotionMinZ", edgeMotionMinZ);
     pars->edge_motion_max_z = xf86SetIntOption(opts, "EdgeMotionMaxZ", edgeMotionMaxZ);
     pars->edge_motion_min_speed = xf86SetIntOption(opts, "EdgeMotionMinSpeed", edgeMotionMinSpeed);
@@ -2345,7 +2346,12 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
         }
 
         if (priv->reset_smooth_scroll || scroll.dx || scroll.dy) {
-            xf86PostMotionEvent(local->dev, 0, 2, 2, scroll.dx, scroll.dy);
+            int dx, dy;
+
+            dx = scroll.dx * para->smooth_scroll_speed;
+            dy = scroll.dy * para->smooth_scroll_speed;
+
+            xf86PostMotionEvent(local->dev, 0, 2, 2, dx, dy);
         }
     }
 
