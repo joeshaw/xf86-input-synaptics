@@ -354,7 +354,6 @@ static void set_default_parameters(LocalDevicePtr local)
     int clickFinger1, clickFinger2, clickFinger3;
     Bool vertEdgeScroll, horizEdgeScroll;
     Bool vertTwoFingerScroll, horizTwoFingerScroll;
-    Bool smoothScroll;
     int horizResolution = 1;
     int vertResolution = 1;
 
@@ -458,9 +457,6 @@ static void set_default_parameters(LocalDevicePtr local)
     vertTwoFingerScroll = priv->has_double ? TRUE : FALSE;
     horizTwoFingerScroll = FALSE;
 
-    /* Enable smooth scrolling */
-    smoothScroll = TRUE;
-
     /* Use resolution reported by hardware if available */
     if ((priv->resx > 0) && (priv->resy > 0)) {
         horizResolution = priv->resx;
@@ -496,8 +492,9 @@ static void set_default_parameters(LocalDevicePtr local)
     pars->scroll_edge_corner = xf86SetBoolOption(opts, "CornerCoasting", FALSE);
     pars->scroll_twofinger_vert = xf86SetBoolOption(opts, "VertTwoFingerScroll", vertTwoFingerScroll);
     pars->scroll_twofinger_horiz = xf86SetBoolOption(opts, "HorizTwoFingerScroll", horizTwoFingerScroll);
-    pars->smooth_scroll = xf86SetBoolOption(opts, "SmoothScroll", smoothScroll);
+    pars->smooth_scroll = xf86SetBoolOption(opts, "SmoothScroll", TRUE);
     pars->smooth_scroll_speed = xf86SetRealOption(opts, "SmoothScrollSpeed", 2.0);
+    pars->smooth_scroll_time = xf86SetIntOption(opts, "SmoothScrollTime", 40);
     pars->edge_motion_min_z = xf86SetIntOption(opts, "EdgeMotionMinZ", edgeMotionMinZ);
     pars->edge_motion_max_z = xf86SetIntOption(opts, "EdgeMotionMaxZ", edgeMotionMaxZ);
     pars->edge_motion_min_speed = xf86SetIntOption(opts, "EdgeMotionMinSpeed", edgeMotionMinSpeed);
@@ -2345,14 +2342,20 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
 		xf86PostButtonEvent(local->dev, FALSE, 7, FALSE, 0, 0);
         }
 
-        if (priv->reset_smooth_scroll || scroll.dx || scroll.dy) {
-            int dx, dy;
+        priv->smooth_scroll_dx += scroll.dx;
+        priv->smooth_scroll_dy += scroll.dy;
+    }
 
-            dx = scroll.dx * para->smooth_scroll_speed;
-            dy = scroll.dy * para->smooth_scroll_speed;
+    if (hw->millis - priv->last_smooth_scroll >= para->smooth_scroll_time) {
+        int dx, dy;
 
-            xf86PostMotionEvent(local->dev, 0, 2, 2, dx, dy);
-        }
+        dx = priv->smooth_scroll_dx * para->smooth_scroll_speed;
+        dy = priv->smooth_scroll_dy * para->smooth_scroll_speed;
+
+        xf86PostMotionEvent(local->dev, 0, 2, 2, dx, dy);
+
+        priv->smooth_scroll_dx = priv->smooth_scroll_dy = 0;
+        priv->last_smooth_scroll = hw->millis;
     }
 
     if (double_click) {
@@ -2400,7 +2403,6 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     /* Save old values of some state variables */
     priv->finger_state = finger;
     priv->lastButtons = buttons;
-    priv->reset_smooth_scroll = (scroll.dx || scroll.dy);
     priv->last_z = hw->z;
     priv->last_num_fingers = hw->numFingers;
 

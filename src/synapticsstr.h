@@ -110,6 +110,7 @@ typedef struct _SynapticsParameters
     Bool scroll_twofinger_horiz;	    /* Enable/disable horizontal two-finger scrolling */
     Bool smooth_scroll;                     /* Enable/disable reporting of scrolling with valuators */
     double smooth_scroll_speed;             /* Factor to multiply units by for smooth scrolling */
+    int smooth_scroll_time;                 /* Time in ms to wait before posting scroll events */
     double min_speed, max_speed, accl;	    /* movement parameters */
     double trackstick_speed;		    /* trackstick mode speed */
     int edge_motion_min_z;		    /* finger pressure at which minimum edge motion speed is set */
@@ -178,7 +179,9 @@ typedef struct _SynapticsPrivateRec
     int scroll_x;			/* last x-scroll position */
     int smooth_scroll_y;                /* last y-scroll position for smooth scrolling */
     int smooth_scroll_x;                /* last x-scroll position for smooth scrolling */
-    Bool reset_smooth_scroll;           /* state for whether to reset smooth scroll valuator */
+    int smooth_scroll_dy;               /* delta y since last smooth scroll axes posted */
+    int smooth_scroll_dx;               /* delta x since last smooth scroll axes posted */
+    int last_smooth_scroll;             /* last time scroll axes posted, based on hw->millis */
     double scroll_a;			/* last angle-scroll position */
     int count_packet_finger;		/* packet counter with finger on the touchpad */
     int button_delay_millis;		/* button delay for 3rd button emulation */
