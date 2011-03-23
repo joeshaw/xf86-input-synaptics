@@ -495,6 +495,7 @@ static void set_default_parameters(LocalDevicePtr local)
     pars->smooth_scroll = xf86SetBoolOption(opts, "SmoothScroll", TRUE);
     pars->smooth_scroll_speed = xf86SetRealOption(opts, "SmoothScrollSpeed", 2.0);
     pars->smooth_scroll_time = xf86SetIntOption(opts, "SmoothScrollTime", 40);
+    pars->smooth_scroll_threshold = xf86SetIntOption(opts, "SmoothScrollThreshold", 5);
     pars->edge_motion_min_z = xf86SetIntOption(opts, "EdgeMotionMinZ", edgeMotionMinZ);
     pars->edge_motion_max_z = xf86SetIntOption(opts, "EdgeMotionMaxZ", edgeMotionMaxZ);
     pars->edge_motion_min_speed = xf86SetIntOption(opts, "EdgeMotionMinSpeed", edgeMotionMinSpeed);
@@ -2350,16 +2351,27 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
         priv->smooth_scroll_dy += scroll.dy;
     }
 
-    if (hw->millis - priv->last_smooth_scroll >= para->smooth_scroll_time) {
+    if (hw->millis - priv->last_smooth_scroll_time >= para->smooth_scroll_time) {
         int dx, dy;
 
         dx = priv->smooth_scroll_dx * para->smooth_scroll_speed;
         dy = priv->smooth_scroll_dy * para->smooth_scroll_speed;
 
-        xf86PostMotionEvent(local->dev, 0, 2, 2, dx, dy);
+        if (abs(dx) > para->smooth_scroll_threshold)
+            priv->smooth_scroll_dx = 0;
+        else
+            dx = 0;
 
-        priv->smooth_scroll_dx = priv->smooth_scroll_dy = 0;
-        priv->last_smooth_scroll = hw->millis;
+        if (abs(dy) > para->smooth_scroll_threshold)
+            priv->smooth_scroll_dy = 0;
+        else
+            dy = 0;
+
+        if (dx > 0 || dy > 0 || priv->last_smooth_scroll_nonzero)
+            xf86PostMotionEvent(local->dev, 0, 2, 2, dx, dy);
+
+        priv->last_smooth_scroll_nonzero = (dx > 0 || dy > 0);
+        priv->last_smooth_scroll_time = hw->millis;
     }
 
     if (double_click) {
