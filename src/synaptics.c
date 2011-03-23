@@ -528,6 +528,7 @@ static void set_default_parameters(LocalDevicePtr local)
     pars->single_tap_timeout = xf86SetIntOption(opts, "SingleTapTimeout", 180);
     pars->press_motion_min_z = xf86SetIntOption(opts, "PressureMotionMinZ", pressureMotionMinZ);
     pars->press_motion_max_z = xf86SetIntOption(opts, "PressureMotionMaxZ", pressureMotionMaxZ);
+    pars->press_valuator_threshold = xf86SetIntOption(opts, "PressureValuatorThreshold", 5);
 
     pars->min_speed = xf86SetRealOption(opts, "MinSpeed", 0.4);
     pars->max_speed = xf86SetRealOption(opts, "MaxSpeed", 0.7);
@@ -2297,8 +2298,11 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
             }
         }
 
-        if (hw->z != priv->last_z || hw->numFingers != priv->last_num_fingers) {
+        if (abs(hw->z - priv->last_z) > para->press_valuator_threshold
+            || hw->numFingers != priv->last_num_fingers) {
+
             xf86PostMotionEvent(local->dev, 1, 4, 2, hw->z, hw->numFingers);
+            priv->last_z = hw->z;
         }
     }
 
@@ -2403,7 +2407,6 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
     /* Save old values of some state variables */
     priv->finger_state = finger;
     priv->lastButtons = buttons;
-    priv->last_z = hw->z;
     priv->last_num_fingers = hw->numFingers;
 
     return delay;

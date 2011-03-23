@@ -147,6 +147,7 @@ typedef struct _SynapticsParameters
     int press_motion_max_z;		    /* finger pressure at which maximum pressure motion factor is applied */
     double press_motion_min_factor;	    /* factor applied on speed when finger pressure is at minimum */
     double press_motion_max_factor; 	    /* factor applied on speed when finger pressure is at minimum */
+    int press_valuator_threshold;           /* difference in pressures needed to generate pressure valuator events */
     Bool grab_event_device;		    /* grab event device for exclusive use? */
     Bool tap_and_drag_gesture;		    /* Switches the tap-and-drag gesture on/off */
     unsigned int resolution_horiz;          /* horizontal resolution of touchpad in units/mm */
